@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Evalflow project</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f4f6;
+      --panel: #ffffff;
+      --ink: #111827;
+      --muted: #4b5563;
+      --line: #e5e7eb;
+      --miss: #9f1239;
+      --hit: #065f46;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main { max-width: 880px; margin: 0 auto; padding: 28px 20px 72px; }
+    nav { display: flex; gap: 14px; margin-bottom: 16px; font-size: 0.86rem; }
+    nav a { color: var(--ink); text-decoration: none; border-bottom: 1px solid transparent; }
+    nav a[aria-current="page"] { border-bottom-color: var(--ink); }
+    h1 { font-size: 1.6rem; letter-spacing: -0.03em; margin: 0 0 8px; }
+    h2 { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; }
+    p { margin: 0 0 10px; }
+    .kicker { color: var(--muted); max-width: 68ch; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 0 0 12px; }
+    code, .mono { font-family: var(--mono); font-size: 0.86em; }
+    .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .box { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #f8fafc; font-size: 0.86rem; }
+    .box b { display: block; font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+    .arrow { color: var(--muted); }
+    ul { margin: 0; padding-left: 1.1rem; }
+    li { margin: 0 0 6px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+    td.num { font-family: var(--mono); text-align: right; }
+    footer { margin-top: 22px; color: var(--muted); max-width: 68ch; }
+  </style>
+</head>
+<body>
+  <main>
+    <nav>
+      <a href="./">Run</a>
+      <a href="./project.html" aria-current="page">Project</a>
+    </nav>
+    <h1>What Evalflow is</h1>
+    <p class="kicker">A synthetic incremental eval runner. It is not a Nuro system and not a real autonomy stack. The evaluator is a deterministic stand-in, so a cache hit can be checked exactly.</p>
+
+    <section class="panel">
+      <h2>What it is doing</h2>
+      <p>Each scenario depends on a subset of model components: perception, planner, prediction, or a pair of those. The runner evaluates the suite, writes a JSONL run file, and can compare two runs.</p>
+      <p>The cache key is a sha256 of three things: the evaluator version, a fingerprint of the scenario, and hashes of only the components in <code>depends_on</code>. A planner edit therefore recomputes planner-dependent scenarios and leaves the rest as cache hits.</p>
+      <p>On the measured suite that is 70 misses and 130 hits out of 200. Perception-only and prediction-only metrics stay identical. Six unprotected-left cases flip from pass to fail. The <a href="./">run page</a> is that result, row by row.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Architecture</h2>
+      <div class="flow" aria-label="Evalflow data flow">
+        <div class="box"><b>Inputs</b>ModelConfig and scenarios</div>
+        <span class="arrow">→</span>
+        <div class="box"><b>Runner</b>Keys, then hit or miss</div>
+        <span class="arrow">→</span>
+        <div class="box"><b>Cache</b>.cache/evalflow/{aa}/{key}.json</div>
+        <span class="arrow">→</span>
+        <div class="box"><b>Miss path</b>Process pool, synthetic evaluator</div>
+        <span class="arrow">→</span>
+        <div class="box"><b>Run JSONL</b>Header, then one row per scenario</div>
+        <span class="arrow">→</span>
+        <div class="box"><b>Compare</b>Join on scenario id, then this dashboard</div>
+      </div>
+      <p style="margin-top:12px">v1 and v2 share perception and prediction parameters. v2 changes only <code>planner.conservatism</code>, from 0.8 to 0.35. The suite is 120 perception, 40 planner, 20 perception+planner, 10 prediction, and 10 planner+prediction. That mix is why a planner-only edit invalidates 70 scenarios and no others.</p>
+    </section>
+
+    <section class="panel">
+      <h2>How</h2>
+      <ul>
+        <li>Canonical JSON (<code>sort_keys</code>, compact separators) is hashed before it enters the key. Component order in <code>depends_on</code> is normalized, so the fingerprint does not depend on file order.</li>
+        <li>The evaluator receives only the <code>depends_on</code> parameters. An extra component is rejected. An unrelated edit cannot change metrics without changing the key.</li>
+        <li>Cache writes use a temp file in the destination directory and <code>os.replace</code>. A missing entry is a miss. An unreadable or schema-invalid entry logs a warning, is recomputed, and is overwritten. The rest of the run continues.</li>
+        <li>Hits record <code>duration_s</code> of 0. Misses go through <code>ProcessPoolExecutor</code>. The worker is a module-level function so it pickles. One worker exception becomes a row with <code>error</code> set. Other scenarios still finish.</li>
+        <li>Compare joins on scenario id. Pass true to false is a regression. Distance worsens below a 0.05 m tolerance. Jerk worsens above a 0.10 tolerance. Improving one metric and regressing another still counts as a regression.</li>
+        <li>Simulated cost is <code>time.sleep</code>. The default is 0.1 s so the sleep dominates process-pool startup. Tests pass <code>cost_s=0</code>. Bumping <code>synthetic-v1</code> invalidates every key.</li>
+      </ul>
+    </section>
+
+    <section class="panel">
+      <h2>Why</h2>
+      <p>A full eval is the expensive object. Most model edits do not touch every scenario. If the cache key includes the whole model, one planner change throws away perception-only work. If the key ignores dependencies, a real change is a silent hit.</p>
+      <p>The rule has to be visible. The key lists the components that were hashed. The run header lists hits, misses, and wall clock. Compare names the pass flips before the metric-only regressions. An engineer can point at a row and say why it moved.</p>
+      <table>
+        <thead>
+          <tr><th>Measured</th><th class="num">Value</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>v2 hits / misses</td><td class="num">130 / 70</td></tr>
+          <tr><td>Regressions / pass flips</td><td class="num">70 / 6</td></tr>
+          <tr><td>Median naive wall clock</td><td class="num">5.4764 s</td></tr>
+          <tr><td>Median incremental wall clock</td><td class="num">2.2846 s</td></tr>
+          <tr><td>Speedup</td><td class="num">2.3971</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:10px">Bench method: fresh cache, one v1 run to fill it, then three repeats. Each repeat copies that cache, times one v2 run, and times one v2 run with the cache disabled. Later repeats must not reuse a cache that already holds v2 keys. Workers 4, cost 0.1 s. Those figures are from that command, not an estimate.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Why this is the fit for Nuro</h2>
+      <p>Nuro’s eval problem is not drawing a chart. It is knowing which scenarios a component edit invalidates, recomputing only those, and handing an engineer a result they can defend. Pooja built this prototype around that rule.</p>
+      <p>The cache key includes the evaluator version, the scenario, and only <code>depends_on</code>. The worker never sees the other components, so an unrelated edit cannot change outputs without changing the key. A corrupt cache entry is a miss, not a crash. One failed scenario does not drop the rest of the run. The comparison treats a mixed improve-and-regress row as a regression, and it sorts pass flips first.</p>
+      <p>The stack is synthetic on purpose. Calling it a Nuro system would hide whether the invalidation is actually correct. Here the proof is checkable: 70 keys change, 130 metrics match bitwise, six unprotected-left passes flip to fail, and the speedup is 2.3971 on the recorded bench.</p>
+      <p>That is the piece of eval infrastructure worth showing. Contracts, partial invalidation, and a page someone else can read. Ray, Parquet, bootstrap confidence intervals, and watch mode are out of scope for this prototype.</p>
+    </section>
+
+    <footer>
+      Synthetic prototype only. Evalflow is not a Nuro system and not a real autonomy stack. Metrics come from evaluator synthetic-v1, not a vehicle and not a real autonomy stack.
+    </footer>
+  </main>
+</body>
+</html>

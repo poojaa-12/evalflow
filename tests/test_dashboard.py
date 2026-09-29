@@ -62,6 +62,7 @@ def test_dashboard_embeds_cache_key_and_rows(tmp_path: Path) -> None:
     )
     html = out.read_text(encoding="utf-8")
     assert "sha256(evaluator_version + scenario_fingerprint" in html
+    assert 'href="./project.html"' in html
     assert "night-001" in html
     assert "not a Nuro system" in html
     assert candidate_run.header.hits == 1

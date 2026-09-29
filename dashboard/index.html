@@ -57,6 +57,9 @@
     .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .hash { word-break: break-all; }
     .excluded { color: var(--muted); }
+    nav { display: flex; gap: 14px; margin-bottom: 16px; font-size: 0.86rem; }
+    nav a { color: var(--ink); text-decoration: none; border-bottom: 1px solid transparent; }
+    nav a[aria-current="page"] { border-bottom-color: var(--ink); }
     footer { margin-top: 22px; color: var(--muted); max-width: 78ch; }
     @media (max-width: 900px) {
       .stats, .grid, .split { grid-template-columns: 1fr; }
@@ -65,6 +68,10 @@
 </head>
 <body>
   <main>
+    <nav>
+      <a href="./" aria-current="page">Run</a>
+      <a href="./project.html">Project</a>
+    </nav>
     <h1>Evalflow</h1>
     <p class="kicker">Dependency-aware cache for a synthetic eval runner. Not a Nuro system and not a real autonomy stack. Numbers on this page come from the measured v1 and v2 runs.</p>
     <section class="stats" id="stats"></section>

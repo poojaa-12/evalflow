@@ -8,6 +8,8 @@ A scenario depends on a subset of model components. The cache key hashes the eva
 
 Live page: https://evalflow-demo.vercel.app
 
+Project write-up (architecture, what, how, why, and why this is the fit): https://evalflow-demo.vercel.app/project.html
+
 It shows the component diff, the cache-key preimage, which dependency groups invalidate, and every scenario row from the measured runs. Regenerate the static file after a new pair of runs:
 
 ```bash
