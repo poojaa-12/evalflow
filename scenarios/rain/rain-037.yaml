@@ -1,0 +1,5 @@
+id: rain-037
+category: rain
+seed: 76
+depends_on:
+- prediction

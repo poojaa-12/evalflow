@@ -1,0 +1,12 @@
+# Synthetic model config. Not a real autonomy stack.
+version: v1
+components:
+  perception:
+    range_m: 120.0
+    noise: 0.02
+  planner:
+    conservatism: 0.8
+    comfort_weight: 1.2
+  prediction:
+    horizon_s: 8.0
+    uncertainty: 0.15

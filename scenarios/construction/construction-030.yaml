@@ -1,0 +1,5 @@
+id: construction-030
+category: construction
+seed: 189
+depends_on:
+- planner

@@ -1,0 +1,6 @@
+id: unprotected_left-040
+category: unprotected_left
+seed: 119
+depends_on:
+- planner
+- prediction

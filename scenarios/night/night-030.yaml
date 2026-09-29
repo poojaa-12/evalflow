@@ -1,0 +1,5 @@
+id: night-030
+category: night
+seed: 29
+depends_on:
+- planner

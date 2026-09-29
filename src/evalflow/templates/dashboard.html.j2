@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Evalflow dashboard</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f4f6;
+      --panel: #ffffff;
+      --ink: #111827;
+      --muted: #4b5563;
+      --line: #e5e7eb;
+      --miss: #9f1239;
+      --hit: #065f46;
+      --flip: #9a3412;
+      --same: #1d4ed8;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 72px; }
+    h1 { font-size: 1.45rem; letter-spacing: -0.03em; margin: 0; }
+    h2 { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+    p { margin: 0 0 8px; }
+    .kicker { color: var(--muted); margin-top: 6px; max-width: 78ch; }
+    .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin: 18px 0; }
+    .stat, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+    .stat { padding: 12px 14px; }
+    .stat b { display: block; font-family: var(--mono); font-size: 1.25rem; font-weight: 650; }
+    .stat span { color: var(--muted); font-size: 0.78rem; }
+    .grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 12px; }
+    .panel { padding: 14px 16px; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); }
+    code, .mono { font-family: var(--mono); font-size: 0.84em; }
+    .changed { background: #fff7ed; }
+    .formula { font-family: var(--mono); font-size: 12px; background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    input, select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+    #rows tr { cursor: pointer; }
+    #rows tr.active { background: #eff6ff; }
+    .tag { display: inline-block; border-radius: 999px; padding: 1px 7px; font-size: 0.75rem; border: 1px solid var(--line); }
+    .tag.hit { color: var(--hit); }
+    .tag.miss { color: var(--miss); }
+    .tag.regression { color: var(--miss); }
+    .tag.unchanged { color: var(--muted); }
+    .tag.improvement { color: var(--hit); }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .hash { word-break: break-all; }
+    .excluded { color: var(--muted); }
+    footer { margin-top: 22px; color: var(--muted); max-width: 78ch; }
+    @media (max-width: 900px) {
+      .stats, .grid, .split { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Evalflow</h1>
+    <p class="kicker">Dependency-aware cache for a synthetic eval runner. Not a Nuro system and not a real autonomy stack. Numbers on this page come from the measured v1 and v2 runs.</p>
+    <section class="stats" id="stats"></section>
+    <div class="grid">
+      <section class="panel">
+        <h2>What changed</h2>
+        <p class="kicker">v2 edits planner conservatism only. A scenario is recomputed when its <code>depends_on</code> list includes a changed component.</p>
+        <div id="components"></div>
+      </section>
+      <section class="panel">
+        <h2>Invalidation</h2>
+        <div id="mix"></div>
+      </section>
+    </div>
+    <section class="panel">
+      <h2>Cache key</h2>
+      <pre class="formula">sha256(evaluator_version + scenario_fingerprint + hashes of depends_on components only)</pre>
+      <p class="kicker">Fingerprint and each component hash are sha256 of canonical JSON (<code>sort_keys</code>, compact separators). Components outside <code>depends_on</code> are not in the preimage, so an unrelated edit cannot change the key or the metrics.</p>
+      <div id="inspector"></div>
+    </section>
+    <section class="panel">
+      <h2>Bench</h2>
+      <p class="kicker">Fresh cache, one v1 warmup, then 3 repeats. Each repeat copies the v1 cache, times a v2 run, and times a v2 run with the cache disabled. Speedup is median naive / median incremental. Workers 4, cost 0.1 s.</p>
+      <div id="bench"></div>
+    </section>
+    <section class="panel">
+      <h2>Scenarios</h2>
+      <div class="filters">
+        <input id="q" type="search" placeholder="Filter id" aria-label="Filter by scenario id">
+        <select id="category" aria-label="Category"></select>
+        <select id="depends" aria-label="Dependencies"></select>
+        <select id="cache" aria-label="Cache status">
+          <option value="">cache: any</option>
+          <option value="hit">hit</option>
+          <option value="miss">miss</option>
+        </select>
+        <select id="outcome" aria-label="Outcome">
+          <option value="">outcome: any</option>
+          <option value="regression">regression</option>
+          <option value="improvement">improvement</option>
+          <option value="unchanged">unchanged</option>
+        </select>
+      </div>
+      <div style="overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Scenario</th>
+              <th>Depends on</th>
+              <th>v2 cache</th>
+              <th>Pass</th>
+              <th class="num">Δ distance</th>
+              <th class="num">Δ jerk</th>
+              <th>Outcome</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Comparator</h2>
+      <p>Join on scenario id. Pass true to false is a regression. <code>min_distance_m</code> worsens if the candidate is lower by more than 0.05. <code>jerk</code> worsens if the candidate is higher by more than 0.10. A row that improves one metric and regresses another counts as a regression. Inside both tolerances, with no pass flip, the row is unchanged.</p>
+    </section>
+    <footer>
+      Synthetic prototype only. Evalflow is not a Nuro system and not a real autonomy stack. Metrics come from evaluator synthetic-v1, not a vehicle and not a real autonomy stack.
+    </footer>
+  </main>
+  <script id="payload" type="application/json">{{ payload_json | safe }}</script>
+  <script>
+    const data = JSON.parse(document.getElementById("payload").textContent);
+    const stats = data.summary;
+    const statHost = document.getElementById("stats");
+    const cards = [
+      ["scenarios", stats.scenarios],
+      ["keys invalidated", stats.invalidated],
+      ["v2 hits", stats.hits],
+      ["v2 misses", stats.misses],
+      ["regressions", stats.regressions],
+      ["pass flips", stats.pass_flips]
+    ];
+    for (const [label, value] of cards) {
+      const node = document.createElement("div");
+      node.className = "stat";
+      node.innerHTML = "<b></b><span></span>";
+      node.querySelector("b").textContent = String(value);
+      node.querySelector("span").textContent = label;
+      statHost.appendChild(node);
+    }
+
+    const componentHost = document.getElementById("components");
+    const componentTable = document.createElement("table");
+    componentTable.innerHTML = "<thead><tr><th>Component</th><th>Parameter</th><th class='num'>" + data.baseline_version + "</th><th class='num'>" + data.candidate_version + "</th></tr></thead>";
+    const componentBody = document.createElement("tbody");
+    for (const [name, spec] of Object.entries(data.components)) {
+      const keys = new Set([...Object.keys(spec.baseline), ...Object.keys(spec.candidate)]);
+      for (const key of [...keys].sort()) {
+        const row = document.createElement("tr");
+        if (spec.baseline[key] !== spec.candidate[key]) row.className = "changed";
+        row.innerHTML = "<td></td><td class='mono'></td><td class='num'></td><td class='num'></td>";
+        const cells = row.querySelectorAll("td");
+        cells[0].textContent = name;
+        cells[1].textContent = key;
+        cells[2].textContent = String(spec.baseline[key]);
+        cells[3].textContent = String(spec.candidate[key]);
+        componentBody.appendChild(row);
+      }
+    }
+    componentTable.appendChild(componentBody);
+    componentHost.appendChild(componentTable);
+
+    const mixHost = document.getElementById("mix");
+    const mixTable = document.createElement("table");
+    mixTable.innerHTML = "<thead><tr><th>depends_on</th><th class='num'>n</th><th class='num'>invalidated</th><th class='num'>hits</th><th class='num'>regressions</th></tr></thead>";
+    const mixBody = document.createElement("tbody");
+    for (const group of data.mix) {
+      const row = document.createElement("tr");
+      row.innerHTML = "<td class='mono'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td>";
+      const cells = row.querySelectorAll("td");
+      cells[0].textContent = group.label;
+      cells[1].textContent = String(group.count);
+      cells[2].textContent = String(group.invalidated);
+      cells[3].textContent = String(group.hits);
+      cells[4].textContent = String(group.regressions);
+      mixBody.appendChild(row);
+    }
+    mixTable.appendChild(mixBody);
+    mixHost.appendChild(mixTable);
+
+    const benchHost = document.getElementById("bench");
+    if (!data.bench) {
+      benchHost.textContent = "No bench file was attached.";
+    } else {
+      const bench = data.bench;
+      const lines = [
+        ["median naive s", bench.median_naive_s],
+        ["median incremental s", bench.median_incremental_s],
+        ["hit rate", bench.incremental_hit_rate],
+        ["speedup", bench.speedup],
+        ["naive samples", (bench.naive_s || []).join(" ")],
+        ["incremental samples", (bench.incremental_s || []).join(" ")]
+      ];
+      const table = document.createElement("table");
+      for (const [label, value] of lines) {
+        const row = document.createElement("tr");
+        row.innerHTML = "<td></td><td class='num'></td>";
+        row.children[0].textContent = label;
+        row.children[1].textContent = String(value);
+        table.appendChild(row);
+      }
+      benchHost.appendChild(table);
+    }
+
+    const category = document.getElementById("category");
+    const depends = document.getElementById("depends");
+    const cache = document.getElementById("cache");
+    const outcome = document.getElementById("outcome");
+    const query = document.getElementById("q");
+    const rows = document.getElementById("rows");
+    const inspector = document.getElementById("inspector");
+
+    function addOption(select, value, label) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      select.appendChild(option);
+    }
+    addOption(category, "", "category: any");
+    for (const value of [...new Set(data.scenarios.map((row) => row.category))].sort()) addOption(category, value, value.replaceAll("_", " "));
+    addOption(depends, "", "depends_on: any");
+    for (const value of [...new Set(data.scenarios.map((row) => row.depends_label))].sort()) addOption(depends, value, value);
+
+    let selected = data.scenarios.find((row) => row.pass_flip === "regression") || data.scenarios[0];
+
+    function fmt(value) {
+      return Number(value).toFixed(3);
+    }
+    function tag(text, kind) {
+      return '<span class="tag ' + kind + '">' + text + "</span>";
+    }
+    function filtered() {
+      const needle = query.value.trim().toLowerCase();
+      return data.scenarios.filter((row) => {
+        if (needle && !row.id.includes(needle)) return false;
+        if (category.value && row.category !== category.value) return false;
+        if (depends.value && row.depends_label !== depends.value) return false;
+        if (cache.value && row.cache_status !== cache.value) return false;
+        if (outcome.value && row.status !== outcome.value) return false;
+        return true;
+      });
+    }
+    function renderInspector(row) {
+      inspector.replaceChildren();
+      const title = document.createElement("p");
+      title.innerHTML = "<code></code> · seed <span class='mono'></span> · fingerprint <span class='mono hash'></span>";
+      title.querySelector("code").textContent = row.id;
+      title.querySelectorAll("span")[0].textContent = String(row.seed);
+      title.querySelectorAll("span")[1].textContent = row.fingerprint;
+      inspector.appendChild(title);
+      const pre = document.createElement("pre");
+      pre.className = "formula";
+      pre.textContent = row.scenario_json;
+      inspector.appendChild(pre);
+      const table = document.createElement("table");
+      table.innerHTML = "<thead><tr><th>Component</th><th>In key</th><th>v1 hash</th><th>v2 hash</th></tr></thead>";
+      const body = document.createElement("tbody");
+      for (const component of row.components) {
+        const line = document.createElement("tr");
+        if (!component.in_key) line.className = "excluded";
+        else if (!component.same) line.className = "changed";
+        line.innerHTML = "<td class='mono'></td><td></td><td class='mono hash'></td><td class='mono hash'></td>";
+        const cells = line.querySelectorAll("td");
+        cells[0].textContent = component.name;
+        cells[1].textContent = component.in_key ? "yes" : "no";
+        cells[2].textContent = component.in_key ? component.hash_v1 : "excluded";
+        cells[3].textContent = component.in_key ? component.hash_v2 : "excluded";
+        body.appendChild(line);
+      }
+      table.appendChild(body);
+      inspector.appendChild(table);
+      const keys = document.createElement("div");
+      keys.className = "split";
+      for (const [label, value, changed] of [["v1 key", row.key_v1, false], ["v2 key", row.key_v2, row.key_changed]]) {
+        const block = document.createElement("p");
+        block.className = "hash mono";
+        if (changed) block.style.background = "#fff7ed";
+        block.textContent = label + " " + value;
+        keys.appendChild(block);
+      }
+      inspector.appendChild(keys);
+      const metrics = document.createElement("p");
+      const base = row.baseline;
+      const cand = row.candidate;
+      metrics.textContent = "pass " + (base.passed ? "true" : "false") + " → " + (cand.passed ? "true" : "false")
+        + " · min_distance_m " + fmt(base.min_distance_m) + " → " + fmt(cand.min_distance_m)
+        + " · jerk " + fmt(base.jerk) + " → " + fmt(cand.jerk)
+        + (row.identical ? " · metrics identical" : "");
+      inspector.appendChild(metrics);
+    }
+    function renderRows() {
+      const visible = filtered();
+      rows.replaceChildren();
+      for (const row of visible) {
+        const line = document.createElement("tr");
+        if (selected && selected.id === row.id) line.className = "active";
+        const pass = (row.baseline.passed ? "pass" : "fail") + " → " + (row.candidate.passed ? "pass" : "fail");
+        line.innerHTML = "<td class='mono'></td><td class='mono'></td><td></td><td></td><td class='num'></td><td class='num'></td><td></td>";
+        const cells = line.querySelectorAll("td");
+        cells[0].textContent = row.id;
+        cells[1].textContent = row.depends_label;
+        cells[2].innerHTML = tag(row.cache_status, row.cache_status);
+        cells[3].textContent = pass;
+        cells[4].textContent = fmt(row.min_distance_delta);
+        cells[5].textContent = fmt(row.jerk_delta);
+        cells[6].innerHTML = tag(row.status, row.status);
+        line.addEventListener("click", () => {
+          selected = row;
+          renderInspector(row);
+          renderRows();
+        });
+        rows.appendChild(line);
+      }
+    }
+    for (const node of [category, depends, cache, outcome, query]) node.addEventListener("input", renderRows);
+    renderInspector(selected);
+    renderRows();
+  </script>
+</body>
+</html>

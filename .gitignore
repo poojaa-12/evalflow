@@ -1,0 +1,13 @@
+.cache/
+runs/
+/report.html
+.venv/
+.vercel/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.pre-commit-cache/
+dist/
+*.egg-info/

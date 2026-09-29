@@ -1,0 +1,6 @@
+id: rain-040
+category: rain
+seed: 79
+depends_on:
+- planner
+- prediction

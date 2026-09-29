@@ -1,0 +1,6 @@
+id: night-039
+category: night
+seed: 38
+depends_on:
+- planner
+- prediction

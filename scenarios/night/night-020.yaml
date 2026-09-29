@@ -1,0 +1,5 @@
+id: night-020
+category: night
+seed: 19
+depends_on:
+- perception

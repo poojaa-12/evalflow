@@ -1,0 +1,6 @@
+id: unprotected_left-036
+category: unprotected_left
+seed: 115
+depends_on:
+- perception
+- planner

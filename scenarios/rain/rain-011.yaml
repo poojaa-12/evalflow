@@ -1,0 +1,5 @@
+id: rain-011
+category: rain
+seed: 50
+depends_on:
+- perception

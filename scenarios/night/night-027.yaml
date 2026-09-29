@@ -1,0 +1,5 @@
+id: night-027
+category: night
+seed: 26
+depends_on:
+- planner

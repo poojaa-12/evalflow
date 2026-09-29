@@ -1,0 +1,6 @@
+id: construction-036
+category: construction
+seed: 195
+depends_on:
+- perception
+- planner

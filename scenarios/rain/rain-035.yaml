@@ -1,0 +1,6 @@
+id: rain-035
+category: rain
+seed: 74
+depends_on:
+- perception
+- planner

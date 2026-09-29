@@ -1,0 +1,12 @@
+# Same components as v1. Only planner.conservatism changes.
+version: v2
+components:
+  perception:
+    range_m: 120.0
+    noise: 0.02
+  planner:
+    conservatism: 0.35
+    comfort_weight: 1.2
+  prediction:
+    horizon_s: 8.0
+    uncertainty: 0.15

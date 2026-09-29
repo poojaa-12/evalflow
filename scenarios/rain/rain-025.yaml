@@ -1,0 +1,5 @@
+id: rain-025
+category: rain
+seed: 64
+depends_on:
+- planner

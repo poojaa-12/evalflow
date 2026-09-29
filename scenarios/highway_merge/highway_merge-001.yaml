@@ -1,0 +1,5 @@
+id: highway_merge-001
+category: highway_merge
+seed: 120
+depends_on:
+- perception

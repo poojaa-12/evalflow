@@ -1,0 +1,5 @@
+id: highway_merge-032
+category: highway_merge
+seed: 151
+depends_on:
+- planner

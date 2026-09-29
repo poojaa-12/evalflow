@@ -1,0 +1,6 @@
+id: highway_merge-034
+category: highway_merge
+seed: 153
+depends_on:
+- perception
+- planner

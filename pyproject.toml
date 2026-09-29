@@ -1,0 +1,53 @@
+[project]
+name = "evalflow"
+version = "0.1.0"
+description = "Synthetic incremental eval runner prototype. Not a Nuro system and not a real autonomy stack."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "jinja2>=3.1",
+    "pandas>=2.2",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "typer>=0.12",
+]
+
+[project.scripts]
+evalflow = "evalflow.cli:app"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.13",
+    "pandas-stubs>=2.2",
+    "pre-commit>=4.0",
+    "pytest>=8.0",
+    "ruff==0.16.6",
+    "types-PyYAML>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["evalflow", "tests"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["evalflow"]
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "src"]
+addopts = ["-q"]

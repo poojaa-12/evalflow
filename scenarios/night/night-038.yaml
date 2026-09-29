@@ -1,0 +1,5 @@
+id: night-038
+category: night
+seed: 37
+depends_on:
+- prediction

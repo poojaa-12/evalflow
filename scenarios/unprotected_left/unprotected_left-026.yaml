@@ -1,0 +1,5 @@
+id: unprotected_left-026
+category: unprotected_left
+seed: 105
+depends_on:
+- planner

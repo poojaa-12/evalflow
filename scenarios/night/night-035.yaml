@@ -1,0 +1,6 @@
+id: night-035
+category: night
+seed: 34
+depends_on:
+- perception
+- planner

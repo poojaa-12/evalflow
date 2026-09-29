@@ -1,0 +1,16 @@
+{
+  "scenarios": 200,
+  "workers": 4,
+  "repeats": 3,
+  "cost_s": 0.1,
+  "warmup_baseline_s": 5.5369,
+  "naive_s": [5.4697, 5.4764, 5.4991],
+  "incremental_s": [2.2466, 2.2991, 2.2846],
+  "median_naive_s": 5.4764,
+  "median_incremental_s": 2.2846,
+  "incremental_hits": 130,
+  "incremental_misses": 70,
+  "incremental_hit_rate_repeats": [0.65, 0.65, 0.65],
+  "incremental_hit_rate": 0.65,
+  "speedup": 2.3971
+}

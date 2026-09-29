@@ -1,0 +1,5 @@
+id: unprotected_left-019
+category: unprotected_left
+seed: 98
+depends_on:
+- perception

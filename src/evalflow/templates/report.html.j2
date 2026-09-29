@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Evalflow report {{ comparison.baseline_header.model_version }} vs {{ comparison.candidate_header.model_version }}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #e2e8f0;
+      --paper: #ffffff;
+      --page: #f8fafc;
+      --regression: #9f1239;
+      --improvement: #047857;
+      --unchanged: #475569;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+    h1 { font-size: 1.8rem; line-height: 1.2; margin: 0 0 8px; }
+    h2 { font-size: 1.15rem; margin: 32px 0 12px; }
+    p { margin: 0 0 12px; }
+    .lede { color: var(--muted); max-width: 62ch; }
+    #summary-banner {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+    .stats { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+    .stat {
+      flex: 1 1 140px;
+      border-top: 4px solid var(--unchanged);
+      padding-top: 8px;
+    }
+    .stat.regression { border-top-color: var(--regression); }
+    .stat.improvement { border-top-color: var(--improvement); }
+    .stat .count { display: block; font-size: 2rem; font-weight: 650; letter-spacing: -0.03em; }
+    .stat .label { color: var(--muted); }
+    svg { display: block; width: 100%; max-width: 360px; height: 28px; border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; background: var(--paper); }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; }
+    .card { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; overflow: auto; }
+    td code { white-space: nowrap; }
+    .empty { color: var(--muted); padding: 16px; }
+    .reason { color: var(--muted); }
+    footer {
+      margin-top: 36px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      max-width: 68ch;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Evalflow comparison</h1>
+    <p class="lede">
+      {{ comparison.baseline_header.model_version }} to {{ comparison.candidate_header.model_version }}.
+      Distance tolerance {{ "%.2f"|format(comparison.distance_tol) }} m.
+      Jerk tolerance {{ "%.2f"|format(comparison.jerk_tol) }}.
+    </p>
+
+    <section id="summary-banner">
+      <div class="stats">
+        <div class="stat regression">
+          <span class="count">{{ comparison.regressions }}</span>
+          <span class="label">Regressions</span>
+        </div>
+        <div class="stat improvement">
+          <span class="count">{{ comparison.improvements }}</span>
+          <span class="label">Improvements</span>
+        </div>
+        <div class="stat unchanged">
+          <span class="count">{{ comparison.unchanged }}</span>
+          <span class="label">Unchanged</span>
+        </div>
+      </div>
+      <svg viewBox="0 0 360 28" role="img" aria-label="Regressions, improvements, and unchanged">
+        {% for bar in bars %}
+        {% if bar.width > 0 %}
+        <rect x="{{ bar.x }}" y="0" width="{{ bar.width }}" height="28" fill="{{ bar.color }}"></rect>
+        {% endif %}
+        {% endfor %}
+      </svg>
+    </section>
+
+    <h2>By category</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th class="num">Regressions</th>
+            <th class="num">Improvements</th>
+            <th class="num">Unchanged</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in comparison.by_category %}
+          <tr>
+            <td>{{ row.category|replace("_", " ") }}</td>
+            <td class="num">{{ row.regressions }}</td>
+            <td class="num">{{ row.improvements }}</td>
+            <td class="num">{{ row.unchanged }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Top regressions</h2>
+    {% if comparison.top_regressions %}
+    <p class="lede">Showing {{ top_shown }} of {{ comparison.regressions }}. Pass flips are listed first, then the largest normalized worsen.</p>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>Pass</th>
+            <th class="num">Min distance (m)</th>
+            <th class="num">Jerk</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in comparison.top_regressions %}
+          <tr>
+            <td><code>{{ row.scenario_id }}</code><br><span class="reason">{{ row.category|replace("_", " ") }}</span></td>
+            <td>{{ "pass" if row.baseline.passed else "fail" }} → {{ "pass" if row.candidate.passed else "fail" }}</td>
+            <td class="num">{{ "%.3f"|format(row.baseline.min_distance_m) }} → {{ "%.3f"|format(row.candidate.min_distance_m) }}</td>
+            <td class="num">{{ "%.3f"|format(row.baseline.jerk) }} → {{ "%.3f"|format(row.candidate.jerk) }}</td>
+            <td class="reason">{{ row.reasons|join("; ") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty">No regressions.</p>
+    {% endif %}
+
+    <h2>Runtime</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>Baseline {{ comparison.baseline_header.model_version }}</th>
+            <th>Candidate {{ comparison.candidate_header.model_version }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Wall clock (s)</td>
+            <td>{{ "%.3f"|format(comparison.baseline_header.wall_clock_s) }}</td>
+            <td>{{ "%.3f"|format(comparison.candidate_header.wall_clock_s) }}</td>
+          </tr>
+          <tr>
+            <td>Hits</td>
+            <td>{{ comparison.baseline_header.hits }}</td>
+            <td>{{ comparison.candidate_header.hits }}</td>
+          </tr>
+          <tr>
+            <td>Misses</td>
+            <td>{{ comparison.baseline_header.misses }}</td>
+            <td>{{ comparison.candidate_header.misses }}</td>
+          </tr>
+          <tr>
+            <td>Workers</td>
+            <td>{{ comparison.baseline_header.workers }}</td>
+            <td>{{ comparison.candidate_header.workers }}</td>
+          </tr>
+          <tr>
+            <td>Cache</td>
+            <td>{{ "on" if comparison.baseline_header.cache_enabled else "off" }}</td>
+            <td>{{ "on" if comparison.candidate_header.cache_enabled else "off" }}</td>
+          </tr>
+          <tr>
+            <td>Evaluator</td>
+            <td>{{ comparison.baseline_header.evaluator_version }}</td>
+            <td>{{ comparison.candidate_header.evaluator_version }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <footer>
+      Synthetic prototype only. Evalflow is not a Nuro system and not a real autonomy stack.
+      Metrics come from the synthetic evaluator ({{ comparison.candidate_header.evaluator_version }}),
+      not a vehicle and not a real autonomy stack.
+    </footer>
+  </main>
+</body>
+</html>
