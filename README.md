@@ -23,7 +23,7 @@ uv run evalflow dashboard \
   --out dashboard/index.html
 ```
 
-`dashboard/index.html` is a static file. Deploy that directory to Vercel to get a link.
+`dashboard/index.html` and `dashboard/project.html` are static files. `vercel.json` publishes that directory on the connected Vercel project, with no install and no build. A push to `main` updates the production site.
 
 ## Quickstart
 
