@@ -6,7 +6,9 @@ A scenario depends on a subset of model components. The cache key hashes the eva
 
 ## Dashboard
 
-The shareable page is a technical dashboard: component diff, cache-key preimage, which dependency groups invalidate, and every scenario row from the measured runs. Generate it after the two runs:
+Live page: https://evalflow-demo.vercel.app
+
+It shows the component diff, the cache-key preimage, which dependency groups invalidate, and every scenario row from the measured runs. Regenerate the static file after a new pair of runs:
 
 ```bash
 uv run evalflow dashboard \
